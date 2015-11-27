@@ -2,7 +2,7 @@
 
 /**
  * @file
- *  Searches possible fishy user sessions with help of the accesslog table.
+ * Searches possible fishy user sessions with help of the accesslog table.
  */
 
 /**
@@ -38,7 +38,7 @@ function session_guard_menu() {
   $items['admin/people/sessions'] = array(
     'title' => 'Session guard: actives',
     'type' => MENU_NORMAL_ITEM,
-    'description'=>t('Tables with the users sessions list data'),
+    'description'=> t('Tables with the users sessions list data'),
     'page callback' => 'sessions_table',
     'access arguments' => array('administer session guard'),
     'file' => 'includes/session_guard.inc',
@@ -102,7 +102,7 @@ function session_guard_get_new_accesslog() {
   $query->groupBy('hostname');
   $query->groupBy('uid');
   $query->orderBy('timestamp', 'DESC');
-  
+
   return $query->execute()->fetchAll();
 }
 
@@ -124,7 +124,7 @@ function session_guard_search_fishy($logs) {
           'hostname' => $log->hostname,
           'hostname_old' => $session_guard_log->hostname,
           'timestamp' => $log->timestamp,
-          'timestamp_old' =>  $session_guard_log->timestamp,
+          'timestamp_old' => $session_guard_log->timestamp,
           'uid' => $log->uid,
           'created' => strtotime('now'),
         );
@@ -144,7 +144,7 @@ function session_guard_get_log($uid) {
   $query->fields('s');
   $query->condition('uid', $uid, '=');
   $query->orderBy('timestamp', 'DESC');
-  
+
   return $query->execute()->fetchAll();
 
 }
@@ -155,7 +155,7 @@ function session_guard_get_log($uid) {
 function is_difference_less_than_one_hour($earlier_timestamp, $later_timestamp) {
   $result = FALSE;
   $difference = session_guard_get_timestamp_difference($earlier_timestamp, $later_timestamp);
-  
+
   if ($difference->invert && $difference->d == 0 && $difference->h < 1) {
     $result = TRUE;
   }
@@ -169,7 +169,7 @@ function is_difference_less_than_one_hour($earlier_timestamp, $later_timestamp) 
 function session_guard_get_timestamp_difference($earlier_timestamp, $later_timestamp) {
   $earlier_datetime = DateTime::createFromFormat('U', $earlier_timestamp);
   $later_datetime = DateTime::createFromFormat('U', $later_timestamp);
-  
+
   return $earlier_datetime->diff($later_datetime);
 }
 
@@ -177,7 +177,14 @@ function session_guard_get_timestamp_difference($earlier_timestamp, $later_times
  * Writes the given fishy sessions list in fishy_session table.
  */
 function session_guard_write_fishy($fishy_list) {
-  $query = db_insert('fishy_session')->fields(array('hostname', 'hostname_old', 'timestamp', 'timestamp_old', 'uid', 'created'));
+  $query = db_insert('fishy_session')->fields(array(
+    'hostname',
+    'hostname_old',
+    'timestamp',
+    'timestamp_old', 
+    'uid',
+    'created'
+  ));
 
   foreach ($fishy_list as $fishy) {
     $query->values(array(
@@ -199,7 +206,11 @@ function session_guard_write_log($logs) {
   foreach ($logs as $log) {
     db_merge('session_log')
       ->key(array('uid' => $log->uid, 'hostname' => $log->hostname))
-      ->fields(array('hostname' => $log->hostname, 'uid' => $log->uid, 'timestamp' => $log->timestamp))
+      ->fields(array(
+        'hostname' => $log->hostname,
+        'uid' => $log->uid,
+        'timestamp' => $log->timestamp
+      ))
       ->execute();
   }
 }
@@ -227,7 +238,7 @@ function session_guard_get_opened_session_number($account) {
   $query = db_select('sessions', 's');
   $query->fields('s', array('uid'));
   $query->condition('uid', $account->uid, '=');
-  
+
   return $query->countQuery()->execute()->fetchField();
 }
 

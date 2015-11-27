@@ -164,7 +164,8 @@ function session_guard_install() {
 }
 
 /**
- * Explores the logs before the cron_last date in accesslog table to find any fishy.
+ * Explores the logs before the cron_last date in accesslog table 
+ * to find any fishy.
  */
 function session_guard_explore_old_accesslog() {
   $logs = session_guard_get_old_accesslog();
@@ -187,6 +188,6 @@ function session_guard_get_old_accesslog() {
   $query->groupBy('hostname');
   $query->groupBy('uid');
   $query->orderBy('timestamp', 'DESC');
-  
+
   return $query->execute()->fetchAll();
 }

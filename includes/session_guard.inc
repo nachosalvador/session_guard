@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Users sessions lists
+ * Users sessions lists.
  */
 
 /**
@@ -10,8 +10,8 @@
  */
 function sessions_table($session = 'active') {
   $output = l(
-    t('Delete all'), 
-    'admin/people/sessions/' . $session . '/delete-all', 
+    t('Delete all'),
+    'admin/people/sessions/' . $session . '/delete-all',
     array('attributes' => array('class' => array('button button-delete-all')))
   );
   $output .= sessions_get_table($session);
@@ -31,7 +31,7 @@ function sessions_list_delete_all_form($form, &$form_state, $session) {
 
   return confirm_form(
     $form,
-    t('Are you sure you want to delete all ' . $session . '?'),
+    t('Are you sure you want to delete all %session?', array('%session' => $session)),
     'admin/people/sessions/' . $session,
     t('This action cannot be undone.'),
     t('Delete')
