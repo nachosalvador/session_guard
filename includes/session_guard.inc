@@ -56,7 +56,7 @@ function sessions_get_table($session) {
   $header = array();
 
   foreach ($header_fields as $header_field => $field) {
-    $header[substr($field, 2)] = array('data' => t($header_field), 'field' => $field);
+    $header[substr($field, 2)] = array('data' => t('%header_field', array('%header_field' => $header_field), 'field' => $field);
   }
 
   $header['actions'] = array('data' => t('Actions'));
@@ -67,7 +67,7 @@ function sessions_get_table($session) {
     $rows[] = create_table_row($session, $record);
   }
 
-  return theme('table', array('header' => $header, 'rows' => $rows)).theme('pager');
+  return theme('table', array('header' => $header, 'rows' => $rows)) . theme('pager');
 }
 
 /**
@@ -88,7 +88,7 @@ function session_guard_get_header_fields($session) {
       'New hostname' => 's.hostname',
       'Previous hostname' => 's.hostname_old',
       'New date' => 's.timestamp',
-      'Previous date' => 's.timestamp_old'
+      'Previous date' => 's.timestamp_old',
     ),
   );
 
@@ -99,14 +99,14 @@ function session_guard_get_header_fields($session) {
  * Gets the session table records.
  */
 function get_session_table_records($session, $header) {
-  $query = db_select($session . '_session','s');
+  $query = db_select($session . '_session', 's');
   $query->join('users', 'u', 's.uid = u.uid');
   $query->fields('s');
   $query->fields('u', array('mail', 'name'));
   $query = $query->extend('TableSort')->orderByHeader($header);
   $query = $query->extend('PagerDefault')->limit(50);
   $query = $query->orderBy('created', 'DESC');
-  
+
   return $query->execute()->fetchAll();
 }
 

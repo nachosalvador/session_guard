@@ -164,7 +164,7 @@ function session_guard_install() {
 }
 
 /**
- * Explores the logs before the cron_last date in accesslog table 
+ * Explores the logs before the cron_last date in accesslog table
  * to find any fishy.
  */
 function session_guard_explore_old_accesslog() {

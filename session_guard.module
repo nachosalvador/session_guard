@@ -181,9 +181,9 @@ function session_guard_write_fishy($fishy_list) {
     'hostname',
     'hostname_old',
     'timestamp',
-    'timestamp_old', 
+    'timestamp_old',
     'uid',
-    'created'
+    'created',
   ));
 
   foreach ($fishy_list as $fishy) {
@@ -209,7 +209,7 @@ function session_guard_write_log($logs) {
       ->fields(array(
         'hostname' => $log->hostname,
         'uid' => $log->uid,
-        'timestamp' => $log->timestamp
+        'timestamp' => $log->timestamp,
       ))
       ->execute();
   }
