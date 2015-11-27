@@ -1,0 +1,192 @@
+<?php
+
+/**
+ * @file
+ * Install and update functions for the session_guard module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function session_guard_schema() {
+  $schema['session_log'] = array(
+    'description' => 'Stores grouped data from accesslog table.',
+    'fields' => array(
+      'lid' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique session_log ID.',
+      ),
+      'hostname' => array(
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => FALSE,
+        'description' => 'Hostname of user that visited the page.',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => 0,
+        'description' => 'User {users}.uid that visited the page.',
+      ),
+      'timestamp' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Timestamp of when the page was visited.',
+      ),
+    ),
+    'indexes' => array(
+      'timestamp' => array('timestamp'),
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('lid'),
+    'foreign keys' => array(
+      'visitor' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+  );
+  $schema['fishy_session'] = array(
+    'description' => 'Stores the fishy list.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique fishy_session ID.',
+      ),
+      'hostname' => array(
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => FALSE,
+        'description' => 'Hostname of user that visited the page.',
+      ),
+      'hostname_old' => array(
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => FALSE,
+        'description' => 'Previous hostname of user that visited the page.',
+      ),
+      'timestamp' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Timestamp of user login',
+      ),
+      'timestamp_old' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Timestamp of when the record has been created in accesslog table',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => 0,
+        'description' => 'User {users}.uid that visited the page.',
+      ),
+      'created' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Timestamp of the record when has been created',
+      ),
+    ),
+    'indexes' => array(
+      'created' => array('created'),
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+    'foreign keys' => array(
+      'visitor' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+  );
+  $schema['active_session'] = array(
+    'description' => 'Stores the current active session.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'Primary Key: Unique active_session ID.',
+      ),
+      'opened_sessions' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'The number of opened sessions',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => FALSE,
+        'default' => 0,
+        'description' => 'User {users}.uid that visited the page.',
+      ),
+      'created' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Timestamp of the record when has been created',
+      ),
+    ),
+    'indexes' => array(
+      'created' => array('created'),
+      'uid' => array('uid'),
+    ),
+    'primary key' => array('id'),
+    'foreign keys' => array(
+      'visitor' => array(
+        'table' => 'users',
+        'columns' => array('uid' => 'uid'),
+      ),
+    ),
+  );
+  return $schema;
+}
+
+/**
+ * Implements hook_install().
+ */
+function session_guard_install() {
+  session_guard_explore_old_accesslog();
+}
+
+/**
+ * Explores the logs before the cron_last date in accesslog table to find any fishy.
+ */
+function session_guard_explore_old_accesslog() {
+  $logs = session_guard_get_old_accesslog();
+  session_guard_write_log($logs);
+  $fishy_list = session_guard_search_fishy($logs);
+
+  if (!empty($fishy_list)) {
+    session_guard_write_fishy($fishy_list);
+  }
+}
+
+/**
+ * Gets the accesslog table records until the last cron execution.
+ */
+function session_guard_get_old_accesslog() {
+  $query = db_select('accesslog', 'a');
+  $query->fields('a');
+  $query->condition('uid', 0, '<>');
+  $query->condition('timestamp', variable_get('cron_last'), '<=');
+  $query->groupBy('hostname');
+  $query->groupBy('uid');
+  $query->orderBy('timestamp', 'DESC');
+  
+  return $query->execute()->fetchAll();
+}

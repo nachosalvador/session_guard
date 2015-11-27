@@ -1,0 +1,4 @@
+name = Session Guard
+description = Show info about users login sessions.
+core = 7.x
+dependencies[] = statistics

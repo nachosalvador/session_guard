@@ -1,0 +1,245 @@
+<?php
+
+/**
+ * @file
+ *  Searches possible fishy user sessions with help of the accesslog table.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function session_guard_permission() {
+  return array(
+    'administer session guard' => array(
+      'title' => t('Administer session guard'),
+      'description' => t('Control the main settings pages.'),
+    ),
+  );
+}
+
+/**
+ * Loads the session guard type.
+ */
+function session_guard_type_load($arg) {
+  $types = array('active', 'fishy');
+  $type = FALSE;
+
+  if (in_array($arg, $types)) {
+    $type = $arg;
+  }
+
+  return $type;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function session_guard_menu() {
+  $items['admin/people/sessions'] = array(
+    'title' => 'Session guard: actives',
+    'type' => MENU_NORMAL_ITEM,
+    'description'=>t('Tables with the users sessions list data'),
+    'page callback' => 'sessions_table',
+    'access arguments' => array('administer session guard'),
+    'file' => 'includes/session_guard.inc',
+  );
+  $items['admin/people/sessions/active'] = array(
+    'title' => 'Session guard: active',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'description' => t('Tables with the users sessions list data'),
+    'page callback' => 'sessions_table',
+    'page arguments' => array(3),
+    'access arguments' => array('administer session guard'),
+    'file' => 'includes/session_guard.inc',
+  );
+  $items['admin/people/sessions/fishy'] = array(
+    'title' => 'Session guard: fishy',
+    'type' => MENU_LOCAL_TASK,
+    'page callback' => 'sessions_table',
+    'page arguments' => array(3),
+    'access arguments' => array('administer session guard'),
+    'file' => 'includes/session_guard.inc',
+  );
+  $items['admin/people/sessions/%session_guard_type/%/delete'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('sessions_delete_form', 3, 4),
+    'access arguments' => array('administer session guard'),
+    'file' => 'includes/session_guard.inc',
+  );
+  $items['admin/people/sessions/%session_guard_type/delete-all'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('sessions_list_delete_all_form', 3),
+    'access arguments' => array('administer session guard'),
+    'file' => 'includes/session_guard.inc',
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_cron().
+ */
+function session_guard_cron() {
+  $logs = session_guard_get_new_accesslog();
+  $fishy_list = session_guard_search_fishy($logs);
+
+  if (!empty($fishy_list)) {
+    session_guard_write_fishy($fishy_list);
+  }
+
+  session_guard_write_log($logs);
+}
+
+/**
+ * Gets the new changes from accesslog table since the last cron execution.
+ */
+function session_guard_get_new_accesslog() {
+  $query = db_select('accesslog', 'a');
+  $query->fields('a');
+  $query->condition('uid', 0, '<>');
+  $query->condition('timestamp', variable_get('cron_last'), '>');
+  $query->groupBy('hostname');
+  $query->groupBy('uid');
+  $query->orderBy('timestamp', 'DESC');
+  
+  return $query->execute()->fetchAll();
+}
+
+/**
+ * Searches fishy sessions in the given logs.
+ */
+function session_guard_search_fishy($logs) {
+  $fishy_list = array();
+
+  foreach ($logs as $log) {
+    $session_guard_logs = session_guard_get_log($log->uid);
+
+    foreach ($session_guard_logs as $session_guard_log) {
+      $is_difference_between_access = is_difference_less_than_one_hour($log->timestamp, $session_guard_log->timestamp);
+      $is_fishy = ($log->hostname != $session_guard_log->hostname && $is_difference_between_access);
+
+      if ($is_fishy) {
+        $fishy_list[] = array(
+          'hostname' => $log->hostname,
+          'hostname_old' => $session_guard_log->hostname,
+          'timestamp' => $log->timestamp,
+          'timestamp_old' =>  $session_guard_log->timestamp,
+          'uid' => $log->uid,
+          'created' => strtotime('now'),
+        );
+        break;
+      }
+    }
+  }
+
+  return $fishy_list;
+}
+
+/**
+ * Gets the session_log data for a given uid.
+ */
+function session_guard_get_log($uid) {
+  $query = db_select('session_log', 's');
+  $query->fields('s');
+  $query->condition('uid', $uid, '=');
+  $query->orderBy('timestamp', 'DESC');
+  
+  return $query->execute()->fetchAll();
+
+}
+
+/**
+ * Gets TRUE or FALSE if satisfies a difference less than one hour.
+ */
+function is_difference_less_than_one_hour($earlier_timestamp, $later_timestamp) {
+  $result = FALSE;
+  $difference = session_guard_get_timestamp_difference($earlier_timestamp, $later_timestamp);
+  
+  if ($difference->invert && $difference->d == 0 && $difference->h < 1) {
+    $result = TRUE;
+  }
+
+  return $result;
+}
+
+/**
+ * Gets the difference between two timestamps.
+ */
+function session_guard_get_timestamp_difference($earlier_timestamp, $later_timestamp) {
+  $earlier_datetime = DateTime::createFromFormat('U', $earlier_timestamp);
+  $later_datetime = DateTime::createFromFormat('U', $later_timestamp);
+  
+  return $earlier_datetime->diff($later_datetime);
+}
+
+/**
+ * Writes the given fishy sessions list in fishy_session table.
+ */
+function session_guard_write_fishy($fishy_list) {
+  $query = db_insert('fishy_session')->fields(array('hostname', 'hostname_old', 'timestamp', 'timestamp_old', 'uid', 'created'));
+
+  foreach ($fishy_list as $fishy) {
+    $query->values(array(
+      'hostname' => $fishy['hostname'],
+      'hostname_old' => $fishy['hostname_old'],
+      'timestamp' => $fishy['timestamp'],
+      'timestamp_old' => $fishy['timestamp_old'],
+      'uid' => $fishy['uid'],
+      'created' => $fishy['created'],
+    ));
+  }
+  $query->execute();
+}
+
+/**
+ * Writes in session_log table data from the given logs.
+ */
+function session_guard_write_log($logs) {
+  foreach ($logs as $log) {
+    db_merge('session_log')
+      ->key(array('uid' => $log->uid, 'hostname' => $log->hostname))
+      ->fields(array('hostname' => $log->hostname, 'uid' => $log->uid, 'timestamp' => $log->timestamp))
+      ->execute();
+  }
+}
+
+/**
+ * Implements hook_user_login().
+ */
+function session_guard_user_login(&$edit, $account) {
+  $opened_sessions = session_guard_get_opened_session_number($account);
+
+  if ($opened_sessions) {
+    $active_session = array(
+      'uid' => $account->uid,
+      'opened_sessions' => $opened_sessions,
+      'created' => strtotime('now'),
+    );
+    session_guard_write_active($active_session);
+  }
+}
+
+/**
+ * Gets the number of opened sessions.
+ */
+function session_guard_get_opened_session_number($account) {
+  $query = db_select('sessions', 's');
+  $query->fields('s', array('uid'));
+  $query->condition('uid', $account->uid, '=');
+  
+  return $query->countQuery()->execute()->fetchField();
+}
+
+/**
+ * Writes the given active session in active_session table.
+ */
+function session_guard_write_active($active_session) {
+  db_insert('active_session')
+    ->fields(array(
+        'opened_sessions' => $active_session['opened_sessions'],
+        'uid' => $active_session['uid'],
+        'created' => $active_session['created'],
+    ))
+    ->execute();
+}
